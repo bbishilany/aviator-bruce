@@ -1511,7 +1511,10 @@ function animate() {
   cloudMat.uniforms.time.value = time;
   starfield.material.uniforms.time.value = time;
 
-  // Smooth camera zoom
+  // Camera position targets
+  let targetCamX = 0, targetCamY = 0.4;
+  camera.position.x += (targetCamX - camera.position.x) * 0.03;
+  camera.position.y += (targetCamY - camera.position.y) * 0.03;
   camera.position.z += (targetCameraZ - camera.position.z) * 0.03;
 
   // Smooth rotation
@@ -1535,14 +1538,13 @@ function animate() {
 
   // Plane animation along great circle — SLOW and dramatic
   if (isAnimating && gcPoints.length > 0) {
-    // Very slow: ~0.0015 means full route takes ~11 seconds at 60fps
     animationProgress += 0.0015;
 
     if (animationProgress >= 1) {
       animationProgress = 1;
       isAnimating = false;
       cameraFollowing = false;
-      targetCameraZ = 2.4; // Pull back slightly at end
+      targetCameraZ = 3.2;
       container.classList.remove('animating');
     }
 
@@ -1555,22 +1557,26 @@ function animate() {
       planeGroup.lookAt(gcPoints[nextIdx]);
     }
 
-    // Camera follows the flight — rotate globe to keep plane centered
+    // Camera follows the flight — rotate globe to keep plane facing camera
     if (cameraFollowing) {
-      // Convert plane position back to rotation that centers it in view
-      // Slowly pan the globe so the plane stays visible
-      const progressEased = animationProgress;
-      // Rotate from NYC-view (-1.3) to London-view (-0.3) over the flight
-      const startY = -1.3;
-      const endY = -0.3;
-      const startX = 0.2;
-      const endX = 0.05;
-      targetRotation.y = startY + (endY - startY) * progressEased;
-      targetRotation.x = startX + (endX - startX) * progressEased;
+      // Get the plane's world position after earth rotation is applied
+      const planeWorld = new THREE.Vector3();
+      planeGroup.getWorldPosition(planeWorld);
 
-      // Zoom in during middle of flight, pull back at start/end
-      const zoomCurve = Math.sin(progressEased * Math.PI); // peaks at 0.5
-      targetCameraZ = 2.1 - zoomCurve * 0.4; // Gets as close as 1.7
+      // Calculate the rotation needed to put the plane directly in front of the camera
+      // We want planeWorld to face roughly toward +Z (the camera direction)
+      // Compute the Y rotation that would bring this point to face camera
+      const targetY = -Math.atan2(planeWorld.x, planeWorld.z);
+      // Compute the X rotation to tilt toward the plane's latitude
+      const targetX = Math.asin(Math.max(-0.8, Math.min(0.8, planeWorld.y / globeRadius)));
+
+      // Smoothly drive rotation toward centering the plane
+      targetRotation.y += (targetY - currentRotation.y) * 0.04;
+      targetRotation.x += (targetX * 0.5 - currentRotation.x) * 0.03;
+
+      // Zoom: start wide, get closest at mid-flight, pull back at end
+      const zoomCurve = Math.sin(animationProgress * Math.PI);
+      targetCameraZ = 2.4 - zoomCurve * 0.6; // 2.4 at edges, 1.8 at peak
     }
 
     // Pulsing trail
@@ -1585,6 +1591,9 @@ function animate() {
     m.ring.material.opacity = 0.6 * (1 - (scale - 1) / 0.4);
     m.glow.material.opacity = 0.2 + 0.1 * Math.sin(time * 3 + i);
   });
+
+  // Camera always looks at globe center
+  camera.lookAt(0, 0, 0);
 
   renderer.render(scene, camera);
 }
