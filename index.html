@@ -411,6 +411,51 @@ html, body {
   margin-top: 6px;
 }
 
+/* ── Zoom Hint ── */
+.zoom-hint {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(26,35,50,0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--text-faint);
+  border-radius: 20px;
+  padding: 8px 16px;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.zoom-hint.hidden {
+  opacity: 0;
+}
+
+.zoom-hint-icon {
+  font-size: 16px;
+  color: var(--accent);
+  animation: pinchPulse 2s ease-in-out infinite;
+}
+
+.zoom-hint-text {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+@keyframes pinchPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .zoom-hint { bottom: 110px; }
+}
+
 /* ── Mobile Toggle Button ── */
 .mobile-toggle {
   display: none;
@@ -683,6 +728,12 @@ html, body {
       <button class="btn btn--primary" id="btn-animate">Fly the Route</button>
       <button class="btn btn--secondary" id="btn-compare">Show Rhumb Line</button>
       <button class="btn btn--secondary" id="btn-reset">Reset View</button>
+    </div>
+
+    <!-- Zoom hint -->
+    <div class="zoom-hint" id="zoom-hint">
+      <span class="zoom-hint-icon">⟐</span>
+      <span class="zoom-hint-text">Pinch or scroll to zoom · Drag to rotate</span>
     </div>
 
     <!-- Mobile: toggle info panels -->
@@ -1536,9 +1587,21 @@ function animate() {
 
 animate();
 
-// Set initial view to show the North Atlantic
+// Set initial view — zoomed out to show full globe
 targetRotation = { x: 0.15, y: -1.1 };
 currentRotation = { x: 0.15, y: -1.1 };
+targetCameraZ = 4.0;
+camera.position.z = 4.0;
+
+// ── Zoom hint: dismiss on first interaction ──
+const zoomHint = document.getElementById('zoom-hint');
+function dismissHint() {
+  zoomHint.classList.add('hidden');
+  setTimeout(() => { zoomHint.style.display = 'none'; }, 600);
+}
+canvas.addEventListener('wheel', dismissHint, { once: true });
+canvas.addEventListener('touchstart', dismissHint, { once: true });
+canvas.addEventListener('mousedown', dismissHint, { once: true });
 
 // ── Mobile: toggle sidebar ──
 const mobileToggle = document.getElementById('mobile-toggle');
