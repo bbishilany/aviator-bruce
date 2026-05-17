@@ -410,6 +410,146 @@ html, body {
   color: var(--text-muted);
   margin-top: 6px;
 }
+
+/* ── Mobile Toggle Button ── */
+.mobile-toggle {
+  display: none;
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--accent-border);
+  background: rgba(26,35,50,0.95);
+  backdrop-filter: blur(12px);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mobile-toggle:active { background: var(--accent-subtle); }
+
+/* ── Mobile: < 768px ── */
+@media (max-width: 768px) {
+  html, body { overflow: auto; }
+
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 48px 55vh auto 4px;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  /* Topbar compact */
+  .topbar {
+    padding: 0 16px;
+    height: 48px;
+  }
+  .topbar-title { font-size: 12px; }
+  .topbar-meta { display: none; }
+
+  /* Globe takes top section */
+  .globe-container {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 55vh;
+    touch-action: none;
+  }
+
+  /* Sidebar becomes scrollable content below globe */
+  .sidebar {
+    grid-column: 1;
+    grid-row: 3;
+    border-right: none;
+    border-top: 1px solid var(--text-faint);
+    padding: 20px 16px;
+    gap: 16px;
+    overflow-y: visible;
+  }
+
+  /* Mobile toggle */
+  .mobile-toggle { display: block; }
+
+  /* Sidebar collapsed state */
+  .sidebar.collapsed {
+    display: none;
+  }
+
+  /* Flight overlay — compact for mobile */
+  .flight-overlay {
+    top: 12px;
+    right: 12px;
+    padding: 12px 14px;
+    min-width: 180px;
+  }
+  .flight-overlay h4 { font-size: 10px; }
+  .flight-detail-label { font-size: 10px; }
+  .flight-detail-value { font-size: 11px; }
+  .route-legend { gap: 10px; }
+
+  /* Controls — above the toggle */
+  .controls {
+    bottom: 60px;
+    gap: 6px;
+  }
+  .btn {
+    font-size: 11px;
+    padding: 7px 12px;
+  }
+
+  /* Panels compact */
+  .panel { padding: 16px; }
+  .panel h3 { font-size: 15px; }
+  .panel p { font-size: 12px; }
+  .step-text { font-size: 12px; }
+
+  /* Stats */
+  .stat-value { font-size: 20px; }
+  .stat-label { font-size: 9px; }
+}
+
+/* ── Small phones: < 400px ── */
+@media (max-width: 400px) {
+  .app {
+    grid-template-rows: 44px 50vh auto 4px;
+  }
+
+  .topbar { padding: 0 12px; }
+  .brand { font-size: 9px; }
+  .topbar-title { font-size: 11px; }
+
+  .globe-container { min-height: 50vh; }
+
+  .sidebar { padding: 16px 12px; }
+
+  .flight-overlay {
+    top: 8px;
+    right: 8px;
+    padding: 10px 12px;
+    min-width: 160px;
+  }
+
+  .controls { bottom: 56px; }
+  .btn { font-size: 10px; padding: 6px 10px; }
+
+  .stat-row { gap: 8px; }
+  .stat { padding: 10px 8px; }
+  .stat-value { font-size: 18px; }
+}
+
+/* ── Tablet: 769px – 1024px ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app {
+    grid-template-columns: 320px 1fr;
+  }
+  .sidebar { padding: 20px 16px; }
+  .panel { padding: 16px; }
+}
 </style>
 </head>
 <body>
@@ -460,6 +600,15 @@ html, body {
           <div class="step-text">Airlines save ~200-400 miles by following the great circle. That's 30-60 minutes of flight time and thousands in fuel.</div>
         </div>
       </div>
+    </div>
+
+    <!-- What's a Rhumb Line? -->
+    <div class="panel panel--highlight" style="border-left-color: var(--color-red);">
+      <div class="panel-header">What's a Rhumb Line?</div>
+      <h3>The "straight line" that isn't straight.</h3>
+      <p>A <strong>rhumb line</strong> is a path that holds a constant compass bearing — it looks perfectly straight on a flat Mercator map. But on a real sphere, that constant-heading path actually curves away from the shortest route.</p>
+      <p style="margin-top: 8px;">Before GPS, ships sailed rhumb lines because you could just hold one compass direction. Modern aircraft use great circles instead — the heading changes constantly, but computers handle it and you save hundreds of miles.</p>
+      <p style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">The red line in the visualization shows the rhumb line. Notice how it stays lower (closer to the equator) while the gold great circle arcs northward — that arc IS the shortcut.</p>
     </div>
 
     <!-- Distance Comparison -->
@@ -535,6 +684,9 @@ html, body {
       <button class="btn btn--secondary" id="btn-compare">Show Rhumb Line</button>
       <button class="btn btn--secondary" id="btn-reset">Reset View</button>
     </div>
+
+    <!-- Mobile: toggle info panels -->
+    <button class="mobile-toggle" id="mobile-toggle">The Science ↓</button>
   </main>
 
   <!-- Amber Strip -->
@@ -1225,8 +1377,13 @@ canvas.addEventListener('mouseleave', () => { isDragging = false; });
 // Zoom with scroll
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  camera.position.z = Math.max(1.8, Math.min(5, camera.position.z + e.deltaY * 0.002));
+  cameraFollowing = false; // Manual zoom overrides flight cam
+  targetCameraZ = Math.max(1.5, Math.min(5, targetCameraZ + e.deltaY * 0.003));
 }, { passive: false });
+
+// ── Camera animation state ──
+let targetCameraZ = 2.8;
+let cameraFollowing = false;
 
 // ── Buttons ──
 document.getElementById('btn-animate').addEventListener('click', () => {
@@ -1234,6 +1391,10 @@ document.getElementById('btn-animate').addEventListener('click', () => {
   animationProgress = 0;
   planeGroup.visible = true;
   autoRotate = false;
+  cameraFollowing = true;
+  targetCameraZ = 1.9; // Zoom in close
+  // Rotate to show NYC first
+  targetRotation = { x: 0.2, y: -1.3 };
   container.classList.add('animating');
 });
 
@@ -1247,8 +1408,9 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   targetRotation = { x: 0.1, y: -1.2 };
   autoRotate = true;
   isAnimating = false;
+  cameraFollowing = false;
   planeGroup.visible = false;
-  camera.position.z = 2.8;
+  targetCameraZ = 2.8;
   container.classList.remove('animating');
 });
 
@@ -1271,8 +1433,9 @@ document.querySelectorAll('.step').forEach(step => {
       targetRotation = { x: 0.0, y: -0.8 };
       camera.position.z = 2.6;
     } else if (stepNum === 4) {
-      targetRotation = { x: 0.1, y: -1.0 };
-      camera.position.z = 2.4;
+      targetRotation = { x: 0.2, y: -1.3 };
+      targetCameraZ = 1.9;
+      cameraFollowing = true;
       isAnimating = true;
       animationProgress = 0;
       planeGroup.visible = true;
@@ -1293,12 +1456,15 @@ function animate() {
   cloudMat.uniforms.time.value = time;
   starfield.material.uniforms.time.value = time;
 
+  // Smooth camera zoom
+  camera.position.z += (targetCameraZ - camera.position.z) * 0.03;
+
   // Smooth rotation
   if (autoRotate) {
     targetRotation.y += 0.0008;
   }
-  currentRotation.x += (targetRotation.x - currentRotation.x) * 0.04;
-  currentRotation.y += (targetRotation.y - currentRotation.y) * 0.04;
+  currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03;
+  currentRotation.y += (targetRotation.y - currentRotation.y) * 0.03;
 
   // Rotate earth group
   earthGroup.rotation.x = currentRotation.x;
@@ -1312,12 +1478,16 @@ function animate() {
     rhumbLine.material.opacity += ((showRhumb ? 0.7 : 0) - rhumbLine.material.opacity) * 0.08;
   }
 
-  // Plane animation along great circle
+  // Plane animation along great circle — SLOW and dramatic
   if (isAnimating && gcPoints.length > 0) {
-    animationProgress += 0.004;
+    // Very slow: ~0.0015 means full route takes ~11 seconds at 60fps
+    animationProgress += 0.0015;
+
     if (animationProgress >= 1) {
       animationProgress = 1;
       isAnimating = false;
+      cameraFollowing = false;
+      targetCameraZ = 2.4; // Pull back slightly at end
       container.classList.remove('animating');
     }
 
@@ -1330,8 +1500,27 @@ function animate() {
       planeGroup.lookAt(gcPoints[nextIdx]);
     }
 
+    // Camera follows the flight — rotate globe to keep plane centered
+    if (cameraFollowing) {
+      // Convert plane position back to rotation that centers it in view
+      // Slowly pan the globe so the plane stays visible
+      const progressEased = animationProgress;
+      // Rotate from NYC-view (-1.3) to London-view (-0.3) over the flight
+      const startY = -1.3;
+      const endY = -0.3;
+      const startX = 0.2;
+      const endX = 0.05;
+      targetRotation.y = startY + (endY - startY) * progressEased;
+      targetRotation.x = startX + (endX - startX) * progressEased;
+
+      // Zoom in during middle of flight, pull back at start/end
+      const zoomCurve = Math.sin(progressEased * Math.PI); // peaks at 0.5
+      targetCameraZ = 2.1 - zoomCurve * 0.4; // Gets as close as 1.7
+    }
+
     // Pulsing trail
-    trail.material.opacity = 0.2 + 0.15 * Math.sin(time * 8);
+    trail.material.opacity = 0.25 + 0.2 * Math.sin(time * 6);
+    trail.scale.setScalar(1 + 0.3 * Math.sin(time * 4));
   }
 
   // Pulse markers
@@ -1350,6 +1539,67 @@ animate();
 // Set initial view to show the North Atlantic
 targetRotation = { x: 0.15, y: -1.1 };
 currentRotation = { x: 0.15, y: -1.1 };
+
+// ── Mobile: toggle sidebar ──
+const mobileToggle = document.getElementById('mobile-toggle');
+const sidebar = document.querySelector('.sidebar');
+
+mobileToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('collapsed');
+  if (sidebar.classList.contains('collapsed')) {
+    mobileToggle.textContent = 'The Science ↓';
+  } else {
+    mobileToggle.textContent = 'Hide ↑';
+    // Scroll sidebar into view
+    setTimeout(() => sidebar.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  }
+});
+
+// ── Mobile: touch controls for globe ──
+let touchStart = null;
+let touchPrevious = null;
+
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    isDragging = true;
+    autoRotate = false;
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    touchPrevious = { ...touchStart };
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 1 && isDragging) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchPrevious.x;
+    const dy = touch.clientY - touchPrevious.y;
+    targetRotation.y += dx * 0.006;
+    targetRotation.x += dy * 0.006;
+    targetRotation.x = Math.max(-1.2, Math.min(1.2, targetRotation.x));
+    touchPrevious = { x: touch.clientX, y: touch.clientY };
+  }
+  // Pinch zoom
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if (touchStart.pinchDist) {
+      const delta = touchStart.pinchDist - dist;
+      targetCameraZ = Math.max(1.5, Math.min(5, targetCameraZ + delta * 0.005));
+      cameraFollowing = false;
+    }
+    touchStart.pinchDist = dist;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  isDragging = false;
+  if (touchStart) touchStart.pinchDist = null;
+});
 </script>
 </body>
 </html>
